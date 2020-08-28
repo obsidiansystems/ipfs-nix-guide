@@ -1,12 +1,10 @@
 # IPFS × Nix Tutorial
 
-## Milesone 1
-
 Welcome to our walkthrough of Milestone 1 of our IPFS × Nix integration.
 
 As you proceed, keep in mind that while parts of this work have already been upstreamed, we plan to incorporate these ideas organically and progressively in Nix, as we continue to optimize how the two ecosystems fit together.
 
-### Part 1. Setup
+## Setup
 
 Before beginning our tour of new features, we should ensure:
 
@@ -15,7 +13,7 @@ Before beginning our tour of new features, we should ensure:
 * We create separate temporary locations for Nix's state (store, db, etc) to avoid corrupting our normal one with values that only the IPFS × Nix version of Nix will currently understand.
 
 
-#### Make sure IPFS is installed
+### Make sure IPFS is installed
 
 If you are using NixOS, you can activate IPFS by editing your `/etc/nix/configuration.nix` with the following addition:
 ```nix
@@ -26,7 +24,7 @@ services.ipfs = {
 If you're using another platform, please install IPFS by following the instructions at https://docs.ipfs.io/install/.
 Ensure the IPFS daemon is running.
 
-#### Get a copy of our version of Nix
+### Get a copy of our version of Nix
 
 Let's setup a working directory:
 ```bash
@@ -51,7 +49,7 @@ $ ln -s ./nix $PWD/nix/bin/nix-store
 $ export PATH=$PWD/nix/bin:$PATH
 ```
 
-#### Creating an alternative store for the sake of this tutorial
+### Creating an alternative store for the sake of this tutorial
 
 The last step of the preparation is creating a temporary Nix store.
 This is primarily required for two reasons:
@@ -97,7 +95,9 @@ $ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-develop/corepk
 
 Now we're ready to dive into the changes in Nix and its new capabilities.
 
-### Part 2. Better Git × Nix integration
+## Milesone 1
+
+### Part 1. Better Git × Nix integration
 
 #### Hash file data like Git
 
@@ -192,7 +192,7 @@ $ nix eval "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipf
 ```
 The two results are slightly different, because the second version has also some attributes about the commit (like `revCount`), but the important thing is that the `narHash` and the `outPath` are the same!
 
-### Part 3. IPFS × Nix integration
+### Part 2. IPFS × Nix integration
 
 ### Export from Nix store to IPFS
 
@@ -544,7 +544,9 @@ You can also use addresses of the form `ipns://domain`, where `domain` is a [DNS
 > We suspect that production systems will use this; Nix will again print out the new IPFS hash so one can update their DNS record in a manner of their choosing.
 
 
-# Milestone 2
+## Milestone 2
+
+### Part 3. Floating content-addressed derivations
 
 
 
