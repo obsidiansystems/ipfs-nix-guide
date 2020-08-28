@@ -1,10 +1,12 @@
 # IPFS × Nix Tutorial
 
+## Milesone 1
+
 Welcome to our walkthrough of Milestone 1 of our IPFS × Nix integration.
 
 As you proceed, keep in mind that while parts of this work have already been upstreamed, we plan to incorporate these ideas organically and progressively in Nix, as we continue to optimize how the two ecosystems fit together.
 
-## Part 1. Setup
+### Part 1. Setup
 
 Before beginning our tour of new features, we should ensure:
 
@@ -13,7 +15,7 @@ Before beginning our tour of new features, we should ensure:
 * We create separate temporary locations for Nix's state (store, db, etc) to avoid corrupting our normal one with values that only the IPFS × Nix version of Nix will currently understand.
 
 
-### Make sure IPFS is installed
+#### Make sure IPFS is installed
 
 If you are using NixOS, you can activate IPFS by editing your `/etc/nix/configuration.nix` with the following addition:
 ```nix
@@ -24,7 +26,7 @@ services.ipfs = {
 If you're using another platform, please install IPFS by following the instructions at https://docs.ipfs.io/install/.
 Ensure the IPFS daemon is running.
 
-### Get a copy of our version of Nix
+#### Get a copy of our version of Nix
 
 Let's setup a working directory:
 ```bash
@@ -49,7 +51,7 @@ $ ln -s ./nix $PWD/nix/bin/nix-store
 $ export PATH=$PWD/nix/bin:$PATH
 ```
 
-### Creating an alternative store for the sake of this tutorial
+#### Creating an alternative store for the sake of this tutorial
 
 The last step of the preparation is creating a temporary Nix store.
 This is primarily required for two reasons:
@@ -95,9 +97,9 @@ $ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-develop/corepk
 
 Now we're ready to dive into the changes in Nix and its new capabilities.
 
-## Part 2. Better Git × Nix integration
+### Part 2. Better Git × Nix integration
 
-### Hash file data like Git
+#### Hash file data like Git
 
 To ensure smooth cooperation between IPFS and Nix, one of our first objectives was to add native support for the Git protocol: in particular we want Nix to be able to hash Git data with the same hashes that Git tree would use.
 
@@ -159,7 +161,7 @@ fd296e9dc29fc3257aae13cee9bac1bfdc14e7bf
 ```
 it's the same hash we started from!
 
-### Fetch a repo and store it in Nix according to its tree hash
+#### Fetch a repo and store it in Nix according to its tree hash
 
 Nix has a builtin function, `builtin.fetchGit`, that is used to reference a Git repo in a Nix expression.
 There's also `builtin.fetchTree`, which is slightly more general, and let's you specify the type of archive to retrieve (Git, Mercurial, etc).
@@ -190,9 +192,9 @@ $ nix eval "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipf
 ```
 The two results are slightly different, because the second version has also some attributes about the commit (like `revCount`), but the important thing is that the `narHash` and the `outPath` are the same!
 
-## Part 3. IPFS × Nix integration
+### Part 3. IPFS × Nix integration
 
-## Export from Nix store to IPFS
+### Export from Nix store to IPFS
 
 Now, let's put data in IPFS, using the Git hashes to get a CID without extra state, configuration, or trust.
 
@@ -247,7 +249,7 @@ $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 > IPFS has a similar concept called pins, which are files that are guaranteed to remain in the user machine.
 > They are automatically mapped from one to the other — when uploaded, a Nix temporary GC root is marked as an IPFS pin.
 
-### Directly fetch a repo and put it in IPFS
+#### Directly fetch a repo and put it in IPFS
 We can now combine the two previous ideas to fetch the content of a repo and store them directly in IPFS:
 ```
 $ nix eval --store ipfs:// "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
@@ -258,7 +260,7 @@ Alternatively, if you don't know the tree hash ahead of time:
 nix eval --store ipfs:// "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
 ```
 
-### Examine git data in IPLD
+#### Examine git data in IPLD
 
 We can inspect the Git repo directly with the command `ipfs dag get`, which gives us a JSON object that looks just like our directory:
 
@@ -295,7 +297,7 @@ $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 }
 ```
 
-### Import from IPFS in Nix
+#### Import from IPFS in Nix
 
 Now, we can try to get a Git repo directly from IPFS.
 
@@ -320,7 +322,7 @@ $ nix eval "(builtins.fetchTree { type = \"git\"; url = \"http://example.com\"; 
 > `--store` specifies the "working" store (as in "working directory") where we will end up putting everything we get.
 > `--substituters` specifies other stores (single CLI arg, space separated list) which we can ask to see if they can provide the path we want.
 
-### Store items with references
+#### Store items with references
 
 In general, an artifact that is stored in the Nix store contains references to other artifacts.
 We need to support this mechanism in IPFS too!
@@ -443,7 +445,7 @@ $ nix shell $result -c hello
 Hello, world!
 ```
 
-### Integration of traditional artifacts
+#### Integration of traditional artifacts
 
 We also improved one the old Nix x IPFS experiments with a trust/translation mapping and integrated it into our prototype.
 
@@ -502,7 +504,7 @@ $ nix shell ./result -c hello
 Hello, world!
 ```
 
-### Using IPNS
+#### Using IPNS
 
 We can also use IPNS following the pattern above.
 This is nice because with IPNS we have actual mutation, and can "read-modify-write" the IPNS value.
@@ -533,13 +535,17 @@ $ nix shell ./result -c hello
 Hello, world!
 ```
 
-### Using DNSLink
+#### Using DNSLink
 
 You can also use addresses of the form `ipns://domain`, where `domain` is a [DNSLink domain](https://docs.ipfs.io/concepts/dnslink/).
 
 > We didn't include a walkthrough in this doc because of the need to put DNS in a sandbox, and the lack of a general programatic way to update DNS records suitable for inclusion in Nix.
 > But do note that `DNSLink` is substantially more performant than IPNS in practice.
 > We suspect that production systems will use this; Nix will again print out the new IPFS hash so one can update their DNS record in a manner of their choosing.
+
+
+# Milestone 2
+
 
 
 ## The end
