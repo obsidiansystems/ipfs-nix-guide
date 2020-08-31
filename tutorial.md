@@ -95,7 +95,7 @@ $ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-develop/corepk
 
 Now we're ready to dive into the changes in Nix and its new capabilities.
 
-## Milesone 1
+## Milestone 1
 
 ### Part 1. Better Git × Nix integration
 
