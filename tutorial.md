@@ -548,7 +548,8 @@ You can also use addresses of the form `ipns://domain`, where `domain` is a [DNS
 
 ### Part 3. Floating content-addressed derivations
 
-This part of the work adds the so called "floating" derivations ("floating" here is used to suggest the opposite of fixed).
+This part of the work adds the so called "floating" derivations.
+("Floating" here is used to suggest the opposite of "fixed".)
 
 These are builds that are deterministic enough that we know they'll always produce the same hash, even if we don't know the hash beforehand.
 
