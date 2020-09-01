@@ -548,7 +548,101 @@ You can also use addresses of the form `ipns://domain`, where `domain` is a [DNS
 
 ### Part 3. Floating content-addressed derivations
 
+This part of the work adds the so called "floating" derivations ("floating" here is used to suggest the opposite of fixed).
 
+These are builds that are deterministic enough that we know they'll always produce the same hash, even if we don't know the hash beforehand.
+
+The idea is that we will build the derivation first, hash the output, and use that result as the hash for the output.
+
+This allows derivation for which the content address is not available in the beginning to be used without an extra step.
+
+In order to use this feature, you can add the `__contentAddressed = true` attribute in an otherwise normal looking derivation. For example, consider:
+
+```nix
+root = mkDerivation {
+  name = "text-hashed-root";
+  buildCommand = ''
+    set -x
+    echo "Building a CA derivation"
+    mkdir -p $out
+    echo "Hello World" > $out/hello
+  '';
+  __contentAddressed = true;
+  outputHashMode = "recursive";
+  outputHashAlgo = "sha256";
+};
+```
+
+Put this content inside "floating-derivation.nix". Now you can build it with:
+```sh
+nix-build --experimental-features ca-derivations ./floating-derivation.nix -A root --no-out-link
+```
+
+#### IPLD derivations
+
+Comment about what IPLD is.
+
+Now, since IPLD is meant to be a single namespace for all the hash-inspired contents, we thought a tighter integration between nix and ipld would be in order.
+
+This is obtained with two new commands, that let nix export a derivation directly to IPLD (returning a cid - content address Id) and import a cid from IPLD, realizing the derivations in the local store.
+
+Let's see those commands in depth. First we have to create a derivation:
+
+```nix
+with import ./config.nix;
+
+rec {
+  root = mkDerivation {
+    name = "ipfs-derivation-output";
+    buildCommand = ''
+      set -x
+      echo "Building a CA derivation"
+      mkdir -p $out
+      echo "Hello World" > $out/hello
+    '';
+    __contentAddressed = true;
+    outputHashMode = "ipfs";
+    outputHashAlgo = "sha256";
+    args = ["-c" "eval \"\$buildCommand\""];
+  };
+
+  dependent = mkDerivation {
+    name = "ipfs-derivation-output-2";
+    buildCommand = ''
+      set -x
+      echo "Building a CA derivation"
+      mkdir -p $out
+      ln -s ${root} $out/ref
+      echo "Hello World" > $out/hello
+    '';
+    __contentAddressed = true;
+    outputHashMode = "ipfs";
+    outputHashAlgo = "sha256";
+    args = ["-c" "eval \"\$buildCommand\""];
+  };
+}
+```
+
+This simple derivation will build two components, called "root" and "dependent" (the names are arbitrary, the dependent one is called that way because it depends on the main one).
+
+You can see both of them use "ipfs" as their hashing mode, which means that they are properly content-addressed. Save that derivation in the file "ipfs-derivation-output.nix".
+
+We want to instantiate the derivation first (which means actually constructing the drv file). We do that with:
+
+```
+drv=$(nix-instantiate --experimental-features ca-derivations ./ipfs-derivation-output.nix -A dependent)
+```
+
+Now we can upload this derivation to IPLD:
+```
+nix ipld-drv export --derivation $drv
+```
+this command will convert the derivation in the format expected by IPLD, and upload it (make sure your daemon is on); it will also return the content address ID under which the derivation has been stored in IPLD
+
+Conversely, if we have a cid for a derivation in `$cid`, we can import it in our local store using:
+```
+nix ipld-drv import $cid
+```
 
 ## The end
 
