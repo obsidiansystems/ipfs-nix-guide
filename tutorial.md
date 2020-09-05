@@ -1,6 +1,6 @@
 # IPFS × Nix Tutorial
 
-Welcome to our walkthrough of Milestone 1 of our IPFS × Nix integration.
+Welcome to our walkthrough of both Milestones 1 and 2 of our IPFS × Nix integration.
 
 As you proceed, keep in mind that while parts of this work have already been upstreamed, we plan to incorporate these ideas organically and progressively in Nix, as we continue to optimize how the two ecosystems fit together.
 
@@ -27,27 +27,35 @@ Ensure the IPFS daemon is running.
 ### Get a copy of our version of Nix
 
 Let's setup a working directory:
-```bash
+```console
 $ cd $(mktemp -d)
 ```
 
 In case you already have Nix installed, you can build this version of Nix from our fork:
 
-``` console
+***TODO***: Update ipfs-master for milestone 2
+```console
 $ git clone -b ipfs-master https://github.com/obsidiansystems/nix
-$ nix-build nix/release.nix -A build.x86_64-linux # or x86_64-darwin
+$ nix-build -A defaultPackage.x86_64-linux # or x86_64-darwin
 $ nix-shell -p ./result
 ```
 
 Alternatively, you can obtain a prebuilt binary via IPFS:
 
-``` console
+```console
 $ mkdir -p $PWD/nix/bin
-$ ipfs get /ipfs/QmRBjvUhYMfkKgB9ACWcGpRSsAV3Mi2qwAnN1mFKk1p8wh -o $PWD/nix/bin/nix
+$ ipfs get /ipfs/QmP3dcaeV1i6i3nFrdhBmqgTgiC9aRJ7Kd51dA1vmPChTT -o $PWD/nix/bin/nix
 $ chmod +x $PWD/nix/bin/nix
 $ ln -s ./nix $PWD/nix/bin/nix-store
+$ ln -s ./nix $PWD/nix/bin/nix-build
+$ ln -s ./nix $PWD/nix/bin/nix-instantiate
 $ export PATH=$PWD/nix/bin:$PATH
 ```
+
+> N.B. you might want to try connecting to Obsidian's IPFS node with
+> ```console
+> ipfs swarm connect '/dns4/obsidian.webhop.org/tcp/4001/ipfs/QmSdseKbhoRJiswUj9R9NytA1aC1tVSqq1LAw3fGLvSn91'
+> ```
 
 ### Creating an alternative store for the sake of this tutorial
 
@@ -75,10 +83,17 @@ $ export NIX_STATE_DIR=$PWD/nix/var
 $ export NIX_LOG_DIR=$PWD/nix/var/log
 $ export NIX_DATA_DIR=$PWD/nix/share
 ```
+And also to avoid the other configurations/caches in case the format changed
+```
+$ unset XDG_CONFIG_DIRS
+$ export XDG_CACHE_HOME=$PWD/.cache
+$ export XDG_CONFIG_HOME=$PWD/.config
+$ export XDG_CACHE_HOME=$PWD/.local/share
+```
 
 and silence errors/warnings for using unstable features
 ```console
-$ echo "experimental-features = nix-command flakes ca-references" > "$NIX_CONF_DIR"/nix.conf
+$ echo "experimental-features = nix-command flakes ca-references ca-derivations" > "$NIX_CONF_DIR"/nix.conf
 ```
 
 > In a future release that's closer to being upstreamed, you will also see "ipfs" in that list.
@@ -88,8 +103,8 @@ Also, to allow us to evaluate Nixpkgs, we need some of Nix's `corepkgs`:
 
 ```console
 $ mkdir -p $PWD/nix/share/nix/corepkgs
-$ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-develop/corepkgs/derivation.nix -o $PWD/nix/share/nix/corepkgs/derivation.nix
-$ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-develop/corepkgs/fetchurl.nix -o $PWD/nix/share/nix/corepkgs/fetchurl.nix
+$ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-master/corepkgs/derivation.nix -o $PWD/nix/share/nix/corepkgs/derivation.nix
+$ curl https://raw.githubusercontent.com/obsidiansystems/nix/ipfs-master/corepkgs/fetchurl.nix -o $PWD/nix/share/nix/corepkgs/fetchurl.nix
 ```
 (We're getting them from our branch, but do note we haven't modified them and have no plans to do so)
 
@@ -104,7 +119,7 @@ Now we're ready to dive into the changes in Nix and its new capabilities.
 To ensure smooth cooperation between IPFS and Nix, one of our first objectives was to add native support for the Git protocol: in particular we want Nix to be able to hash Git data with the same hashes that Git tree would use.
 
 Let's clone an example repo, go to a commit, and ask Git for the hash:
-```bash
+```console
 $ git clone https://github.com/ipfs/ipfs
 Cloning into 'ipfs'...
 $ git -C ipfs checkout 14a65f594e922bac9f31b89a4271df73fb4677a4
@@ -139,7 +154,7 @@ $ nix add-to-store --git ./ipfs-no-git --name source
 You might be wondering why the store path doesn't look like the same hash; that is because the store path in Nix, beside being truncated, depends on many other pieces of information other than the hash.
 We can nonetheless find the original hash using the command `nix path-info` and checking the `ca` field:
 
-```bash
+```console
 $ nix path-info /nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source --json | jq
 [
   {
@@ -169,28 +184,35 @@ We made this family of functions support Git tree hashes too, so as to keep ever
 
 To include a git repo in your Nix code, you could use `builtins.fetchTree` specifying `type = "git"` and the desired hash:
 
-```bash
-$ nix eval "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
+```console
+$ nix eval --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
 {
-  lastModified = "19700101000000";
-  narHash = "sha256-uIr1qotOcueLPXGNOTArfNSABsA3wAXrz4EqAQxJ8lI=";
   outPath = "/nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source";
+  shortTreeHash = "fd296e9";
+  submodules = false;
+  treeHash = "fd296e9dc29fc3257aae13cee9bac1bfdc14e7bf";
 }
 ```
 
 If you don't know the hash, you can use the `gitIngestion` attribute, to tell Nix to use the tree hash after it retrieves the default branch:
 
-```bash
-$ nix eval "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
+
+```console
+$ nix eval --impure --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
 {
-  lastModified = "20200527194432";
-  narHash = "sha256-uIr1qotOcueLPXGNOTArfNSABsA3wAXrz4EqAQxJ8lI=";
-  outPath = "/nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source";
-  rev = "14a65f594e922bac9f31b89a4271df73fb4677a4";
-  revCount = 380; shortRev = "14a65f5";
+  lastModified = 1595975530;
+  lastModifiedDate = "20200728223210";
+  narHash = "sha256-iLWDyG6ZMQ8+Vl824adTSFyVxVeCPVz/ADG0ndw5+KU=";
+  outPath = "/nix/store/f0359vrawiwlrida4yrci4gr4rpmrk8d-source";
+  rev = "80d32a72aa00c01f6536d4745e89afa9407868a7";
+  revCount = 382;
+  shortRev = "80d32a7";
+  shortTreeHash = "987ee17";
+  submodules = false;
+  treeHash = "987ee17d4096620f5e32faf1e28630b67a9e966b"
 }
 ```
-The two results are slightly different, because the second version has also some attributes about the commit (like `revCount`), but the important thing is that the `narHash` and the `outPath` are the same!
+The two results are different, because the default branch now points to a newer commit, but we could do the same procedure as before to see that the `treeHash` and `outPath` match.
 
 ### Part 2. IPFS × Nix integration
 
@@ -211,7 +233,6 @@ $ nix copy /nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source --to ipfs://
 > Note that Nix already knows this path's IPFS hash, so there's no other information to add after the `//`.
 
 We can verify the successful upload via:
-
 ```
 $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 {
@@ -251,13 +272,15 @@ $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 
 #### Directly fetch a repo and put it in IPFS
 We can now combine the two previous ideas to fetch the content of a repo and store them directly in IPFS:
+
 ```
-$ nix eval --store ipfs:// "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
+$ nix eval --store ipfs:// --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
 ```
 
 Alternatively, if you don't know the tree hash ahead of time:
-```bash
-nix eval --store ipfs:// "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
+
+```console
+nix eval --store ipfs:// --impure --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
 ```
 
 #### Examine git data in IPLD
@@ -302,7 +325,7 @@ $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 Now, we can try to get a Git repo directly from IPFS.
 
 First, we need to delete the old path, to make sure that the data isn't cached locally.
-```bash
+```console
 $ nix-store --delete /nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source
 finding garbage collector roots...
 deleting '/nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source'
@@ -313,8 +336,8 @@ note: currently hard linking saves -0.00 MiB
 ```
 
 Then we can copy that path back from IPFS, using `ipfs://` as a substituter.
-```bash
-$ nix eval "(builtins.fetchTree { type = \"git\"; url = \"http://example.com\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })" --substituters ipfs://
+```console
+$ nix eval --expr "(builtins.fetchTree { type = \"git\"; url = \"http://example.com\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })" --substituters ipfs://
 ```
 
 > `--substituters` and `--store` seem really similar right?
@@ -347,7 +370,7 @@ HEAD is now at 43b58960 Merge pull request #92568 from r-ryantm/auto-update/shor
 ```
 
 Now, let's "build" and run it.
-```bash
+```console
 $ nix build -f ./nixpkgs hello
 $ nix shell ./result -c hello
 Hello, world!
@@ -358,7 +381,7 @@ Hello, world!
 > You can pass `--substituters ''` to force a local build instead, if you like.
 
 Let's convert it to a content addressed path, via the `make-content-addressable` command, and take a look at the rewritten paths:
-```bash
+```console
 $ nix make-content-addressable --ipfs -r ./result --json | jq
 {
   "rewrites": {
@@ -375,7 +398,7 @@ The `--ipfs` flag tells it to do so in a way that works well with IPFS.
 
 Once we have this, it can be copied directly to IPFS:
 
-```bash
+```console
 $ result=/nix/store/ilzfb1jrrg6nf8s09k3ljq7ksqx31qi9-hello-2.10
 $ nix copy $result --to ipfs://
 ```
@@ -428,6 +451,8 @@ $ ipfs dag get $cid | jq
   }
 }
 ```
+The main CID is a git reference, like we've done before, but with special additionally for self-references.
+The references are CIDs to other objects in this same format: a git tree hash with references.
 
 Now, let's verify we can fetch what we've added.
 
@@ -454,7 +479,7 @@ We also improved one the old Nix x IPFS experiments with a trust/translation map
 > It's good to have an additional way to use IPFS immediately, which in turn will help motivate the community to make the transition to the new hashing schemes we still maintain are the right choice long-term.
 
 Let's start with building the `hello` package again:
-```bash
+```console
 $ nix build -f ./nixpkgs hello
 $ nix shell ./result -c hello
 Hello, world!
@@ -468,7 +493,7 @@ We call this the "trust mapping".
 
 We'll create a new trust mapping by taking the hash of the empty one and adding a new key-value pair.
 
-```bash
+```console
 $ nix copy ./result --to ipfs://$(echo {} | ipfs dag put)?allow-modify=true
 warning: created new store at 'ipfs://<non-deterministic-store-hash>'.
          The old store at ipfs://bafyreigbtj4x7ip5legnfznufuopl4sg4knzc2cof6duas4b3q2fy6swua is immutable, so we can't update it
@@ -484,12 +509,12 @@ warning: created new store at 'ipfs://<non-deterministic-store-hash>'.
 > Also, perhaps it's a good thing that trust maps are less easy to reproduce: it could make it harder to accidentally confuse the provenance of a build.
 
 Let's write down that new store:
-```bash
+```console
 $ declare new_store=ipfs://<non-deterministic-store-hash>?allow-modify=true
 ```
 
 Now, if we like, we can repeat the same command with the new store:
-```bash
+```console
 $ nix copy ./result --to $new_store
 ```
 The update is *ideompotent*, doing nothing the second time, so there's nothing to warn about!
@@ -497,7 +522,7 @@ The update is *ideompotent*, doing nothing the second time, so there's nothing t
 
 With our new trust mapping, we can fetch Hello via IPFS.
 Again, we'll delete the old path and use the IPFS store as a substitute:
-```bash
+```console
 $ result=$(readlink ./result); rm ./result && nix-store --delete $result; unset result
 $ nix build -f ./nixpkgs hello --substituters $new_store -j0
 $ nix shell ./result -c hello
@@ -548,22 +573,17 @@ You can also use addresses of the form `ipns://domain`, where `domain` is a [DNS
 
 ### Part 3. Floating content-addressed derivations
 
-This part of the work adds the so called "floating" derivations.
-("Floating" here is used to suggest the opposite of "fixed".)
+#### Basic usage
 
-These are builds that are deterministic enough that we know they'll always produce the same hash, even if we don't know the hash beforehand.
+This part will deal with the newly introduced "floating content-addressed" derivations ("floating" here is used to suggest the opposite of "fixed").
 
-The idea is that we will build the derivation first, hash the output, and use that result as the hash for the output.
-
-This allows derivation for which the content address is not available in the beginning to be used without an extra step.
-
-In order to use this feature, you can add the `__contentAddressed = true` attribute in an otherwise normal looking derivation. For example, consider:
-
+Let's create, in the file `content-addressed-0.nix`, a floating content-addressed derivation:
 ```nix
-root = mkDerivation {
-  name = "text-hashed-root";
+with import ./nixpkgs {};
+
+stdenv.mkDerivation {
+  name = "simple-content-addressed";
   buildCommand = ''
-    set -x
     echo "Building a CA derivation"
     mkdir -p $out
     echo "Hello World" > $out/hello
@@ -571,79 +591,435 @@ root = mkDerivation {
   __contentAddressed = true;
   outputHashMode = "recursive";
   outputHashAlgo = "sha256";
-};
+}
 ```
 
-Put this content inside "floating-derivation.nix". Now you can build it with:
-```sh
-nix-build --experimental-features ca-derivations ./floating-derivation.nix -A root --no-out-link
+What's going on here?
+> If you are familiar with Nix, you might notice these derivations have the `outputHashMode` and `outputHashAlgo` from today's "fixed-output derivations", but no `outputHash`, and also a new `__contentAddressed = true;`.
+
+To understand them, let's review how Nix worked traditionally; users were presented with two choices for derivations:
+
+  - Input-addressed derivations, which aren't addressed by their output, but by the data in the derivation itself. This is currently the most commonly used derivation type in nixpkgs.
+
+  - Fixed content-addressed derivations, which were addressed by their output, but could only work if you specified the content address in the derivation itself before the build. This type of derivation is currently mainly used to fetch source code.
+
+Floating content-addressed derivations get us the best of the two approaches:
+We have the comfort of not having to commit to a hash ahead of time when writing the derivation for a deterministic build, _and_ we get content-addressed output, which is more principled, easier to work with, and integrates easily with other systems like IPFS.
+
+We can build this derivation via
+```
+# out=$(nix-build ./content-addressed-0.nix --no-out-link)
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+Resolved derivation: '/nix/store/l15yvnask1cmhy56asick2ighwmlbihq-simple-content-addressed.drv' -> '/nix/store/gbn8mhdy8qfq50i74p62g02ygd11h7b6-simple-content-addressed.drv'...
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+building '/nix/store/gbn8mhdy8qfq50i74p62g02ygd11h7b6-simple-content-addressed.drv'...
+Building a CA derivation
 ```
 
-#### IPLD derivations
+Now that we have the result of the derivation, let's examine the associated metadata:
+```
+$ nix path-info --json $out | jq
+[
+  {
+    "path": "/nix/store/31jl3ynipmm7z3pnf42lcghani93r4yq-simple-content-addressed",
+    "narHash": "sha256-JjC2jNaxvLUxX7dT5u0TWUe90qX2koSJeJQ85c7oWyU=",
+    "narSize": 296,
+    "references": [],
+    "ca": "fixed:r:sha256:09avx37fag4lg24q94pnlp9bsisr2gnyclxpbwqvbg5iss6bcc16",
+    "deriver": "/nix/store/nc3l21r2bynifbryb4ppj65sycni3h72-simple-content-addressed.drv",
+    "registrationTime": 1599248702,
+    "ultimate": true
+  }
+]
+```
+As we can see from the `ca` field, we really have a content-addressed output path here.
 
-Comment about what IPLD is.
+> If you are confused why this says "fixed", remember we are looking at the output path not the derivation itself.
+> Long ago, Nix decided to use "fixed" in this CA field, perhaps because fixed-output derivations.
+> We don't want otherwise content-addressed outputs to betray their origins by using a different scheme, so floating CA derivations' outputs use exactly the same sort of scheme.
 
-Now, since IPLD is meant to be a single namespace for all the hash-inspired contents, we thought a tighter integration between nix and ipld would be in order.
 
-This is obtained with two new commands, that let nix export a derivation directly to IPLD (returning a cid - content address Id) and import a cid from IPLD, realizing the derivations in the local store.
 
-Let's see those commands in depth. First we have to create a derivation:
+#### Dependencies
+
+What about dependencies?
+Let's try a more complex example, in the file `content-addressed-1.nix`
 
 ```nix
-with import ./config.nix;
+with import ./nixpkgs {};
+
+{ seed ? 0 }:
 
 rec {
-  root = mkDerivation {
-    name = "ipfs-derivation-output";
+  root = stdenv.mkDerivation {
+    name = "root";
     buildCommand = ''
-      set -x
       echo "Building a CA derivation"
+      echo "The seed is ${toString seed}"
       mkdir -p $out
       echo "Hello World" > $out/hello
     '';
     __contentAddressed = true;
-    outputHashMode = "ipfs";
+    outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    args = ["-c" "eval \"\$buildCommand\""];
   };
-
-  dependent = mkDerivation {
-    name = "ipfs-derivation-output-2";
+  dependent = stdenv.mkDerivation {
+    name = "dependent";
     buildCommand = ''
-      set -x
-      echo "Building a CA derivation"
+      echo "building a dependent derivation"
       mkdir -p $out
-      ln -s ${root} $out/ref
-      echo "Hello World" > $out/hello
+      echo ${root}/hello > $out/dep
     '';
     __contentAddressed = true;
-    outputHashMode = "ipfs";
+    outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    args = ["-c" "eval \"\$buildCommand\""];
   };
 }
 ```
 
-This simple derivation will build two components, called "root" and "dependent" (the names are arbitrary, the dependent one is called that way because it depends on the main one).
+Now, we've created two derivations here to show you that a floating content-addressed derivation can depend on other content-addressed derivations.
 
-You can see both of them use "ipfs" as their hashing mode, which means that they are properly content-addressed. Save that derivation in the file "ipfs-derivation-output.nix".
+> N.B Input-addressed derivations can't yet depend on content-addresses ones.
+> There should be no reason at this poitn to use input-addressed derivations, so we aren't too concerned, but to make migrations as easy as possible we will see to it being eventually added.
 
-We want to instantiate the derivation first (which means actually constructing the drv file). We do that with:
+Let's build both:
+```console
+$ nix-build ./content-addressed-1.nix -A dependent --no-out-link
+these 2 derivations will be built:
+  /nix/store/wh95jh5p2iwfxcwhgxnjx107l7znfalc-root.drv
+  /nix/store/lxn37cp4vkq5w4fccni5kz6w207m448z-dependent.drv
+nix-build ./content-addressed-1.nix -A dependent --no-out-link --arg seed 5
+  ...
+...
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+Resolved derivation: '/nix/store/wh95jh5p2iwfxcwhgxnjx107l7znfalc-root.drv' -> '/nix/store/c1mvla9ird50x20h8jx0zmrv548hf6fn-root.drv'...
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+building '/nix/store/c1mvla9ird50x20h8jx0zmrv548hf6fn-root.drv'...
+Building a CA derivation
+The seed is 0
+Resolved derivation: '/nix/store/lxn37cp4vkq5w4fccni5kz6w207m448z-dependent.drv' -> '/nix/store/ka90wa7mbpz68zfkixcgb4xk5w8pcmrp-dependent.drv'...
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+building '/nix/store/ka90wa7mbpz68zfkixcgb4xk5w8pcmrp-dependent.drv'...
+building a dependent derivation
+/nix/store/wgq7pqh2h5pkc4lzhgygqbf448ysjfmx-dependent
+```
 
+See the `Resolved derivation: '*' -> '*'...` lines?
+These indicate that before Nix builds a CA derivation, nix will replace any input derivations with the the paths they produced, giving us a more  compact and normalized derivation to actually build.
+
+#### Different derivations same output
+
+We also parametrized these derivation on a "seed" argument. Let's try constructing the derivation for various values of seed:
+
+```console
+$ nix-build ./content-addressed-1.nix -A dependent --no-out-link --arg seed 5
+these 2 derivations will be built:
+  /nix/store/qksxbzk77zpqzgg5ss439ym10f08igzr-root.drv
+  /nix/store/bdrz2ncx991n1d8jqgyrzkpfpl4famjz-dependent.drv
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+Resolved derivation: '/nix/store/qksxbzk77zpqzgg5ss439ym10f08igzr-root.drv' -> '/nix/store/71jjxk63p9mhag0d5x6bbgkiz7ggv5dh-root.drv'...
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+building '/nix/store/71jjxk63p9mhag0d5x6bbgkiz7ggv5dh-root.drv'...
+Building a CA derivation
+The seed is 5
+Resolved derivation: '/nix/store/bdrz2ncx991n1d8jqgyrzkpfpl4famjz-dependent.drv' -> '/nix/store/ka90wa7mbpz68zfkixcgb4xk5w8pcmrp-dependent.drv'...
+/nix/store/wgq7pqh2h5pkc4lzhgygqbf448ysjfmx-dependent
 ```
-drv=$(nix-instantiate --experimental-features ca-derivations ./ipfs-derivation-output.nix -A dependent)
+Notice how `dependent` was only built once?
+This is because with the normalizing we do, the second derivation in fact doesn't end up varying with the seed.
+Since "root" with each seed produced the same store path, that means that the two "downstream" derivations, once normalized to refer to the content-addressed outout of "root" rather than "root" itself, become exactly the same.
+Nix never needs to build any derivation more than once, and so the resolved "dependent" isn't built a second it.
+
+
+#### Derivations producing IPLD-compatible outputs
+
+So how are these content-addressed derivations good for IPFS?
+Recall befere we had to use `nix make-content-addressable` to convert
+let's remember that IPLD is meant to be a common namespace for all the hash-inspired contents, and so it would be nice to be able to use the IPLD format:
+
+Let's create, in the file `ipfs-derivation-output.nix` two derivations:
+
+```nix
+let
+  system = builtins.currentSystem;
+  builder = builtins.ipfsPath {
+    name = "dash-dir";
+    cid = "f01711220a1032a51527eeab22081ab5a23406c1d6ea504f22218e98784fd9097160d5b14";
+  } + "/dash";
+  miniMkdir = builtins.ipfsPath {
+    name = "miniMkdir-dir";
+    cid = "f01711220d03ed5f1534f08528a13fa0b2deebcfe73ea755a35a56ca1c28fab9e080214f5";
+  } + "/miniMkdir";
+  args = ["-c" "eval \"\$buildCommand\""];
+
+in
+  rec {
+    root = builtins.derivation {
+      name = "root";
+      buildCommand = ''
+        set -ex
+        echo "Building a CA derivation"
+        echo $miniMkdir*
+        $miniMkdir $out
+        echo "Hello World" > $out/hello
+      '';
+      __contentAddressed = true;
+      outputHashMode = "ipfs";
+      outputHashAlgo = "sha256";
+      inherit system builder args miniMkdir;
+    };
+
+    dependent = builtins.derivation  {
+      name = "dependent";
+      buildCommand = ''
+        set -ex
+        echo "Building a CA derivation"
+        $miniMkdir $out
+        echo ${root} > $out/root
+        echo "Hello World" > $out/hello
+      '';
+      __contentAddressed = true;
+      outputHashMode = "ipfs";
+      outputHashAlgo = "sha256";
+      inherit system builder args miniMkdir;
+    };
+}
 ```
 
-Now we can upload this derivation to IPLD:
-```
-nix ipld-drv export --derivation $drv
-```
-this command will convert the derivation in the format expected by IPLD, and upload it (make sure your daemon is on); it will also return the content address ID under which the derivation has been stored in IPLD
+You can see that, in addition to having the `__contentAddressed` flag we talked about before, both of them use "ipfs" for `outputHashMode`, which means that they follow the IPLD schema.
 
-Conversely, if we have a cid for a derivation in `$cid`, we can import it in our local store using:
+Now we can instantiate the derivation first (which means actually constructing the drv file - it will return the derivation path), so that we can show the derivation. We do that with:
+
+```console
+$ drv0=$(nix-instantiate ./ipfs-derivation-output.nix -A root --substituters ipfs://)
+$ drv1=$(nix-instantiate ./ipfs-derivation-output.nix -A dependent --substituters ipfs://)
+$ nix show-derivation --derivation "$drv0"
 ```
-nix ipld-drv import $cid
+```json
+{
+  "/nix/store/q79x77al9dvbdyv2j2cian8s2dijxpfn-root.drv": {
+    "outputs": {
+      "out": {
+        "hashAlgo": "ipfs:sha256"
+      }
+    },
+    "inputSrcs": [
+      "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir",
+      "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir"
+    ],
+    "inputDrvs": {},
+    "platform": "x86_64-linux",
+    "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+    "args": [
+      "-c",
+      "eval \"$buildCommand\""
+    ],
+    "env": {
+      "buildCommand": "set -ex\necho \"Building a CA derivation\"\necho $miniMkdir*\n$miniMkdir $out\necho \"Hello World\" > $out/hello\n",
+      "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+      "miniMkdir": "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir",
+      "name": "root",
+      "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+      "outputHashAlgo": "sha256",
+      "outputHashMode": "ipfs",
+      "system": "x86_64-linux"
+    }
+  }
+}
 ```
+
+```console
+$ nix show-derivation --derivation "$drv1"
+```
+```json
+{
+  "/nix/store/vzdwqsfpj6apk2kgfk8bn09py8h865va-dependent.drv": {
+    "outputs": {
+      "out": {
+        "hashAlgo": "ipfs:sha256"
+      }
+    },
+    "inputSrcs": [
+      "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir",
+      "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir"
+    ],
+    "inputDrvs": {
+      "/nix/store/q79x77al9dvbdyv2j2cian8s2dijxpfn-root.drv": [
+        "out"
+      ]
+    },
+    "platform": "x86_64-linux",
+    "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+    "args": [
+      "-c",
+      "eval \"$buildCommand\""
+    ],
+    "env": {
+      "buildCommand": "set -ex\necho \"Building a CA derivation\"\n$miniMkdir $out\necho /16xx03jc550003x886r6h4rhrnqlkfpkh7cg2qyi2a6f61dk61qv > $out/root\necho \"Hello World\" > $out/hello\n",
+      "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+      "miniMkdir": "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir",
+      "name": "dependent",
+      "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+      "outputHashAlgo": "sha256",
+      "outputHashMode": "ipfs",
+      "system": "x86_64-linux"
+    }
+  }
+}
+```
+
+Let's build the whole graph:
+```console
+$ nix-build ./ipfs-derivation-output.nix -A dependent --no-out-link
+these 2 derivations will be built:
+  /nix/store/q79x77al9dvbdyv2j2cian8s2dijxpfn-root.drv
+  /nix/store/vzdwqsfpj6apk2kgfk8bn09py8h865va-dependent.drv
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+warning: do not know how to query for unknown floating content-addressed derivation output yet
+building '/nix/store/q79x77al9dvbdyv2j2cian8s2dijxpfn-root.drv'...
++ echo Building a CA derivation
+Building a CA derivation
++ echo /nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir
+/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir
++ /nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir /nix/store/vscggi356kladi3kg5y6qkkwcng5cfyd-root
++ echo Hello World
+Resolved derivation: '/nix/store/vzdwqsfpj6apk2kgfk8bn09py8h865va-dependent.drv' -> '/nix/store/g1y1v8vm8jfbn02agpw6qw9d3s07sn4p-dependent.drv'...
+/nix/store/2dmmdpamd31if2kmpkqgjn1fj4hv5khq-dependent
+```
+
+### IPLD derivations
+
+#### Export
+Having seen how we can build derivations that are compatible with IPLD format, we now want a good UI to import and export derivations directly from IPLD.
+
+This is obtained the new command `nix ipld-drv`.
+
+Let's use the derivation from the previous heading, whose path is stored in $drv
+
+We can upload this derivation to IPLD:
+```console
+$ cid=$(nix ipld-drv export --derivation $drv1)
+$ echo $cid
+f0171122001172d1b2de78bf64d23ca30b0e41cdb56a60a0030f6ea58ca80084e374d94e7
+```
+this will convert the derivation in the format expected by IPLD, and upload it (make sure your daemon is on).
+It will also return the IPLD content address ID under which the derivation has been stored.
+
+We can look at  the IPLD represention, which is very similiar to the JSON representation `nix show-derivation` already has:
+```console
+# dependent
+ipfs dag get f017112201fb9b75473bb2c80744a1c472e6df89aef924c0d024d1a4b3ed0fb18fc26088a | jq
+```
+```json
+{
+  "args": [
+    "-c",
+    "eval \"$buildCommand\""
+  ],
+  "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+  "env": {
+    "buildCommand": "set -ex\necho \"Building a CA derivation\"\n$miniMkdir $out\necho /16xx03jc550003x886r6h4rhrnqlkfpkh7cg2qyi2a6f61dk61qv > $out/root\necho \"Hello World\" > $out/hello\n",
+    "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+    "miniMkdir": "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir",
+    "name": "dependent",
+    "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+    "outputHashAlgo": "sha256",
+    "outputHashMode": "ipfs",
+    "system": "x86_64-linux"
+  },
+  "inputDrvs": [
+    [
+      {
+        "cid": {
+          "/": "bafyreifdx57lk6pxmpp27hkgiakazx5cab2xcgxe2mse42ql3bx4thk6lm"
+        },
+        "name": "root"
+      },
+      [
+        "out"
+      ]
+    ]
+  ],
+  "inputSrcs": [
+    {
+      "cid": {
+        "/": "bafyreifbamvfcut65kzcbanllirua3a5n2sqj4rcdduypbh5sclrmdk3cq"
+      },
+      "name": "dash-dir"
+    },
+    {
+      "cid": {
+        "/": "bafyreigqh3k7cu2pbbjiue72bmw65ph6opvhkwrvuvwkdqupvopaqaqu6u"
+      },
+      "name": "miniMkdir-dir"
+    }
+  ],
+  "name": "dependent",
+  "outputs": [
+    "out"
+  ],
+  "platform": "x86_64-linux"
+}
+```
+
+We can follow the link in the inputDrvs map to get the IPLD representation of "root":
+
+```console
+# root
+ipfs dag get bafyreifdx57lk6pxmpp27hkgiakazx5cab2xcgxe2mse42ql3bx4thk6lm | jq
+```
+```json
+{
+  "args": [
+    "-c",
+    "eval \"$buildCommand\""
+  ],
+  "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+  "env": {
+    "buildCommand": "set -ex\necho \"Building a CA derivation\"\necho $miniMkdir*\n$miniMkdir $out\necho \"Hello World\" > $out/hello\n",
+    "builder": "/nix/store/v0qd217nvhgws2w3id7xp6444lg3yf6d-dash-dir/dash",
+    "miniMkdir": "/nix/store/h42sq2q51mkh4mh0q4fimfdn7xzzn6a7-miniMkdir-dir/miniMkdir",
+    "name": "root",
+    "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+    "outputHashAlgo": "sha256",
+    "outputHashMode": "ipfs",
+    "system": "x86_64-linux"
+  },
+  "inputDrvs": [],
+  "inputSrcs": [
+    {
+      "cid": {
+        "/": "bafyreifbamvfcut65kzcbanllirua3a5n2sqj4rcdduypbh5sclrmdk3cq"
+      },
+      "name": "dash-dir"
+    },
+    {
+      "cid": {
+        "/": "bafyreigqh3k7cu2pbbjiue72bmw65ph6opvhkwrvuvwkdqupvopaqaqu6u"
+      },
+      "name": "miniMkdir-dir"
+    }
+  ],
+  "name": "root",
+  "outputs": [
+    "out"
+  ],
+  "platform": "x86_64-linux"
+}
+```
+
+The idea is that that this should be a very natural build interface for IPFS users to use, even without the Nix expression language.
+
+#### import
+
+Conversely, if we have a content address ID for a derivation in `$cid`, we can import it in our local store using:
+```console
+$ nix ipld-drv import $cid
+...
+```
+This will download the derivation, convert it in the format expected by nix, and realize it in the local store.
 
 ## The end
 
