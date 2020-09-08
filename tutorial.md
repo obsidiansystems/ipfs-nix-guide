@@ -902,7 +902,7 @@ We can upload this derivation to IPLD:
 ```console
 $ cid=$(nix ipld-drv export --derivation $drv1)
 $ echo $cid
-f0171122001172d1b2de78bf64d23ca30b0e41cdb56a60a0030f6ea58ca80084e374d94e7
+f017112201fb9b75473bb2c80744a1c472e6df89aef924c0d024d1a4b3ed0fb18fc26088a
 ```
 this will convert the derivation in the format expected by IPLD, and upload it (make sure your daemon is on).
 It will also return the IPLD content address ID under which the derivation has been stored.
