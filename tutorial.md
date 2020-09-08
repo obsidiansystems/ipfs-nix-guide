@@ -88,7 +88,7 @@ And also to avoid the other configurations/caches in case the format changed
 $ unset XDG_CONFIG_DIRS
 $ export XDG_CACHE_HOME=$PWD/.cache
 $ export XDG_CONFIG_HOME=$PWD/.config
-$ export XDG_CACHE_HOME=$PWD/.local/share
+$ export XDG_DATA_DIR=$PWD/.local/share
 ```
 
 and silence errors/warnings for using unstable features
