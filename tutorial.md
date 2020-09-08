@@ -279,16 +279,37 @@ $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
 #### Directly fetch a repo and put it in IPFS
 We can now combine the two previous ideas to fetch the content of a repo and store them directly in IPFS:
 
-```
+```console
 $ nix eval --store ipfs:// --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; treeHash = \"$(git -C ipfs rev-parse HEAD:)\"; })"
+{
+  lastModified = 0;
+  lastModifiedDate = "19700101000000";
+  narHash = "sha256-uIr1qotOcueLPXGNOTArfNSABsA3wAXrz4EqAQxJ8lI=";
+  outPath = "/nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source";
+  revCount = 0;
+  shortTreeHash = "fd296e9";
+  submodules = false;
+  treeHash = "fd296e9dc29fc3257aae13cee9bac1bfdc14e7bf";
+}
 ```
 
 Alternatively, if you don't know the tree hash ahead of time:
 
 ```console
-nix eval --store ipfs:// --impure --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
-```
+$ nix eval --store ipfs:// --impure --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
 {
+  lastModified = 1595975530;
+  lastModifiedDate = "20200728223210";
+  narHash = "sha256-iLWDyG6ZMQ8+Vl824adTSFyVxVeCPVz/ADG0ndw5+KU=";
+  outPath = "/nix/store/f0359vrawiwlrida4yrci4gr4rpmrk8d-source";
+  rev = "80d32a72aa00c01f6536d4745e89afa9407868a7";
+  revCount = 382;
+  shortRev = "80d32a7";
+  shortTreeHash = "987ee17";
+  submodules = false;
+  treeHash = "987ee17d4096620f5e32faf1e28630b67a9e966b";
+}
+```
 
 #### Import from IPFS in Nix
 
