@@ -889,7 +889,7 @@ Resolved derivation: '/nix/store/vzdwqsfpj6apk2kgfk8bn09py8h865va-dependent.drv'
 /nix/store/2dmmdpamd31if2kmpkqgjn1fj4hv5khq-dependent
 ```
 
-### IPLD derivations
+### Part 4. IPLD derivations
 
 #### Export
 Having seen how we can build derivations that are compatible with IPLD format, we now want a good UI to import and export derivations directly from IPLD.
