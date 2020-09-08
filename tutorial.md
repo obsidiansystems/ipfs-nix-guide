@@ -232,9 +232,15 @@ $ nix copy /nix/store/p3mq27al6qgja0m0b97nq1vs55fa34pr-source --to ipfs://
 
 > Note that Nix already knows this path's IPFS hash, so there's no other information to add after the `//`.
 
-We can verify the successful upload via:
-```
+#### Examine git data in IPLD
+
+We can verify the successful by inspecting the Git data directly with IPFS.
+In particular, we can use the command `ipfs dag get`, which gives us a JSON object that looks just like our directory:
+
+```console
 $ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
+```
+```json
 {
   ".github": {
     "hash": {
@@ -282,43 +288,7 @@ Alternatively, if you don't know the tree hash ahead of time:
 ```console
 nix eval --store ipfs:// --impure --expr "(builtins.fetchTree { type = \"git\"; url = \"https://github.com/ipfs/ipfs\"; gitIngestion = true; })"
 ```
-
-#### Examine git data in IPLD
-
-We can inspect the Git repo directly with the command `ipfs dag get`, which gives us a JSON object that looks just like our directory:
-
-```
-$ ipfs dag get f01781114$(git -C ipfs rev-parse HEAD:) | jq
-```
-
-```json
 {
-  ".github": {
-    "hash": {
-      "/": "baf4bcffskskovpj2z3gkxkilpxtiufwsr66cpqa"
-    },
-    "mode": "40000"
-  },
-  "LICENSE": {
-    "hash": {
-      "/": "baf4bcfbm6da4fjvbbwv344tiwfpoqg6cyyjm2sq"
-    },
-    "mode": "100644"
-  },
-  "README.md": {
-    "hash": {
-      "/": "baf4bcfedtbce2try2jrnn4njxw7ci2s7uphblfq"
-    },
-    "mode": "100644"
-  },
-  "papers": {
-    "hash": {
-      "/": "baf4bcfaahjflujisowyymoxgcnvpyelc6a3b67a"
-    },
-    "mode": "40000"
-  }
-}
-```
 
 #### Import from IPFS in Nix
 
