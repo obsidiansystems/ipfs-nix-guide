@@ -33,7 +33,6 @@ $ cd $(mktemp -d)
 
 In case you already have Nix installed, you can build this version of Nix from our fork:
 
-***TODO***: Update ipfs-master for milestone 2
 ```console
 $ git clone -b ipfs-master https://github.com/obsidiansystems/nix
 $ nix-build -A defaultPackage.x86_64-linux # or x86_64-darwin
