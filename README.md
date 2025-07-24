@@ -11,3 +11,5 @@ Welcome! Here is a guide to the work we have been be doing to integrate IPFS and
 
  - [Branches and Internal Changes](./branches.md).
    If you are curious what features require what changes behind the scenes.
+
+ - Long running [Nix Discourse thread](https://discourse.nixos.org/t/obsidian-systems-is-excited-to-bring-ipfs-support-to-nix/7375)
